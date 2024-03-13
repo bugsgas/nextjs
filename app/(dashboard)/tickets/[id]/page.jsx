@@ -1,43 +1,55 @@
-import { notFound } from "next/navigation"
+import { notFound } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+
+// components
+import DeleteIcon from './DeleteIcon'
 
 export const dynamicParams = true
 
-export async function generateStaticParams(){
-  const res = await fetch('http://localhost:4000/tickets/')
+export async function generateMetadata({ params }) {
+  const supabase = createServerComponentClient({ cookies })
 
-  const tickets = await res.json()
-
-  return tickets.map((ticket) => ({
-    id: ticket.id
-  }))
+  const { data: ticket } = await supabase.from('tickets')
+    .select()
+    .eq('id', params.id)
+    .single()
+ 
+  return {
+    title: `Dojo Helpdesk | ${ticket?.title || 'Ticket not Found'}`
+  }
 }
 
 async function getTicket(id) {
-  //imitate delay
-  await new Promise(resolve => setTimeout(resolve, 3000))
-  
-  const res = await fetch(`http://localhost:4000/tickets/${id}`, {
-    next: {
-      revalidate: 60
+  const supabase = createServerComponentClient({ cookies })
+
+  const { data } = await supabase.from('tickets')
+    .select()
+    .eq('id', id)
+    .single()
+
+    if (!data) {
+      notFound()
     }
-  })
-
-  if (!res.ok) {
-    notFound()
-  }
-
-  return res.json()
+  
+    return data
 }
 
-
 export default async function TicketDetails({ params }) {
-  // const id = params.id
   const ticket = await getTicket(params.id)
+
+  const supabase = createServerComponentClient({ cookies })
+  const { data } = await supabase.auth.getSession()
 
   return (
     <main>
       <nav>
         <h2>Ticket Details</h2>
+        <div className="ml-auto">
+          {data.session.user.email === ticket.user_email && (
+            <DeleteIcon id={ticket.id} />
+          )}
+        </div>
       </nav>
       <div className="card">
         <h3>{ticket.title}</h3>
